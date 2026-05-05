@@ -31,7 +31,7 @@ locals {
   node_major = "20"
   image_user = "coder"
 
-  proxy_url = "http://172.18.0.1:17891"
+  proxy_url = "http://172.17.0.1:17891"
   no_proxy  = "localhost,127.0.0.1,host.docker.internal,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
   docker_build_args = {
