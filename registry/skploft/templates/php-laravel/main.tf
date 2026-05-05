@@ -33,14 +33,13 @@ locals {
   use_codex     = data.coder_parameter.enable_codex.value == "true"
 
   task_agent_choice = data.coder_parameter.task_agent.value
-  claude_v4_app_id  = try(module.claude-code-v4[0].task_app_id, "")
-  codex_app_id      = try(module.codex[0].task_app_id, "")
+  has_task_agent    = local.use_codex || local.use_claude_v4
+
   task_app_id = (
-    local.task_agent_choice == "claude" && local.claude_v4_app_id != ""
-    ) ? local.claude_v4_app_id : (
-    local.codex_app_id != "" ? local.codex_app_id : local.claude_v4_app_id
+    local.task_agent_choice == "claude" && local.use_claude_v4
+    ) ? try(module.claude-code-v4[0].task_app_id, "") : (
+    local.use_codex ? try(module.codex[0].task_app_id, "") : try(module.claude-code-v4[0].task_app_id, "")
   )
-  has_task_agent = local.task_app_id != ""
 }
 
 data "coder_parameter" "git_repo_url" {
@@ -148,10 +147,17 @@ data "coder_parameter" "codex_use_ai_bridge" {
   mutable      = true
 }
 
+data "coder_workspace_preset" "custom" {
+  name        = "Custom"
+  description = "No pre-filled values; set every parameter yourself. Use this to clone a different repo or to skip the AI agents."
+  default     = true
+
+  parameters = {}
+}
+
 data "coder_workspace_preset" "statamic_skploft" {
   name        = "SKPloft Statamic"
   description = "Clones SKPloft/statamic and enables Codex as the Tasks agent."
-  default     = true
 
   parameters = {
     git_repo_url = "https://github.com/SKPloft/statamic.git"
