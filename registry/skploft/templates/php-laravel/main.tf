@@ -1,16 +1,13 @@
 terraform {
   required_providers {
     coder = {
-      source = "coder/coder"
+      source  = "coder/coder"
+      version = ">= 2.13"
     }
     docker = {
       source = "kreuzwerker/docker"
     }
   }
-}
-
-locals {
-  username = data.coder_workspace_owner.me.name
 }
 
 variable "docker_socket" {
@@ -26,6 +23,25 @@ provider "docker" {
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
+data "coder_task" "me" {}
+
+locals {
+  username = data.coder_workspace_owner.me.name
+
+  use_claude_v5 = data.coder_parameter.enable_claude_code.value == "true" && data.coder_parameter.enable_claude_code_tasks.value != "true"
+  use_claude_v4 = data.coder_parameter.enable_claude_code.value == "true" && data.coder_parameter.enable_claude_code_tasks.value == "true"
+  use_codex     = data.coder_parameter.enable_codex.value == "true"
+
+  task_agent_choice = data.coder_parameter.task_agent.value
+  claude_v4_app_id  = try(module.claude-code-v4[0].task_app_id, "")
+  codex_app_id      = try(module.codex[0].task_app_id, "")
+  task_app_id = (
+    local.task_agent_choice == "claude" && local.claude_v4_app_id != ""
+    ) ? local.claude_v4_app_id : (
+    local.codex_app_id != "" ? local.codex_app_id : local.claude_v4_app_id
+  )
+  has_task_agent = local.task_app_id != ""
+}
 
 data "coder_parameter" "git_repo_url" {
   name         = "git_repo_url"
@@ -71,10 +87,38 @@ data "coder_parameter" "php_version" {
 data "coder_parameter" "enable_claude_code" {
   name         = "enable_claude_code"
   display_name = "Enable Claude Code"
-  description  = "Install the Claude Code CLI in this workspace. Authenticate with `claude /login` after first start; the credential survives in the home volume. Pick a model with `/model` (or `claude config set -g model opus`)."
+  description  = "Install the Claude Code CLI in this workspace. With v5 (default), authenticate with `claude /login` after first start; the credential survives in the home volume. Pick a model with `/model` (or `claude config set -g model opus`)."
   type         = "bool"
   default      = "false"
   mutable      = true
+}
+
+data "coder_parameter" "enable_claude_code_tasks" {
+  name         = "enable_claude_code_tasks"
+  display_name = "Pin Claude Code to v4 for Coder Tasks"
+  description  = "Install claude-code v4 instead of v5 so it can act as a Coder Tasks agent (`task_app_id`). v4 predates the v5 runtime-OAuth refactor, so this trades the cleaner login flow for Tasks compatibility. Only relevant when Enable Claude Code is on."
+  type         = "bool"
+  default      = "false"
+  mutable      = true
+}
+
+data "coder_parameter" "task_agent" {
+  name         = "task_agent"
+  display_name = "Tasks agent"
+  description  = "Which agent answers Coder Tasks prompts. Only matters when more than one task-capable agent is installed. If the selected agent is not installed, the other one is used as a fallback."
+  type         = "string"
+  default      = "codex"
+  mutable      = true
+  form_type    = "dropdown"
+
+  option {
+    name  = "Codex (default)"
+    value = "codex"
+  }
+  option {
+    name  = "Claude Code (requires Pin Claude Code to v4)"
+    value = "claude"
+  }
 }
 
 data "coder_parameter" "claude_code_use_ai_gateway" {
@@ -102,6 +146,20 @@ data "coder_parameter" "codex_use_ai_bridge" {
   type         = "bool"
   default      = "false"
   mutable      = true
+}
+
+data "coder_workspace_preset" "statamic_skploft" {
+  name        = "SKPloft Statamic"
+  description = "Clones SKPloft/statamic and enables Codex as the Tasks agent."
+  default     = true
+
+  parameters = {
+    git_repo_url = "https://github.com/SKPloft/statamic.git"
+    git_branch   = ""
+    php_version  = "8.3"
+    enable_codex = "true"
+    task_agent   = "codex"
+  }
 }
 
 resource "coder_agent" "main" {
@@ -194,7 +252,7 @@ module "jetbrains" {
 }
 
 module "claude-code" {
-  count             = data.coder_parameter.enable_claude_code.value == "true" ? data.coder_workspace.me.start_count : 0
+  count             = local.use_claude_v5 ? data.coder_workspace.me.start_count : 0
   source            = "registry.coder.com/coder/claude-code/coder"
   version           = "~> 5.0"
   agent_id          = coder_agent.main.id
@@ -202,13 +260,30 @@ module "claude-code" {
   enable_ai_gateway = data.coder_parameter.claude_code_use_ai_gateway.value == "true"
 }
 
+module "claude-code-v4" {
+  count          = local.use_claude_v4 ? data.coder_workspace.me.start_count : 0
+  source         = "registry.coder.com/coder/claude-code/coder"
+  version        = "~> 4.0"
+  agent_id       = coder_agent.main.id
+  workdir        = "/home/coder/projects"
+  claude_api_key = ""
+  ai_prompt      = data.coder_task.me.prompt
+}
+
 module "codex" {
-  count           = data.coder_parameter.enable_codex.value == "true" ? data.coder_workspace.me.start_count : 0
+  count           = local.use_codex ? data.coder_workspace.me.start_count : 0
   source          = "registry.coder.com/coder-labs/codex/coder"
   version         = "~> 4.3"
   agent_id        = coder_agent.main.id
   workdir         = "/home/coder/projects"
   enable_aibridge = data.coder_parameter.codex_use_ai_bridge.value == "true"
+  ai_prompt       = data.coder_task.me.prompt
+  report_tasks    = true
+}
+
+resource "coder_ai_task" "task" {
+  count  = local.has_task_agent ? data.coder_workspace.me.start_count : 0
+  app_id = local.task_app_id
 }
 
 resource "docker_image" "main" {
