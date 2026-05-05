@@ -29,6 +29,7 @@ locals {
   username = data.coder_workspace_owner.me.name
 
   proxy_url = "http://172.17.0.1:17891"
+  no_proxy  = "localhost,127.0.0.1,host.docker.internal,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
   use_claude_v5 = data.coder_parameter.enable_claude_code.value == "true" && data.coder_parameter.enable_claude_code_tasks.value != "true"
   use_claude_v4 = data.coder_parameter.enable_claude_code.value == "true" && data.coder_parameter.enable_claude_code_tasks.value == "true"
@@ -235,6 +236,7 @@ module "proxy-env" {
   source    = "git::https://github.com/SKPloft/coder-registry.git//registry/skploft/modules/proxy-env?ref=skploft/templates"
   agent_id  = coder_agent.main.id
   proxy_url = local.proxy_url
+  no_proxy  = local.no_proxy
 }
 
 module "git-clone" {
@@ -308,10 +310,14 @@ resource "docker_image" "main" {
     build_args = {
       PHP_VERSION = data.coder_parameter.php_version.value
       USER        = "coder"
+      HTTP_PROXY  = local.proxy_url
+      HTTPS_PROXY = local.proxy_url
+      NO_PROXY    = local.no_proxy
     }
   }
   triggers = {
     dir_sha1 = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1("${path.module}/${f}")]))
+    proxy    = "${local.proxy_url}|${local.no_proxy}"
   }
 }
 
