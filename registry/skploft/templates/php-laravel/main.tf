@@ -19,6 +19,20 @@ variable "docker_socket" {
   default     = ""
 }
 
+variable "anthropic_api_key" {
+  description = "Anthropic API key for the Claude Code module. Set at template push time. Leave empty to rely on workspace-owner OAuth."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "openai_api_key" {
+  description = "OpenAI API key for the Codex module. Set at template push time."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 provider "docker" {
   host = var.docker_socket != "" ? var.docker_socket : null
 }
@@ -65,6 +79,74 @@ data "coder_parameter" "php_version" {
   option {
     name  = "PHP 8.4"
     value = "8.4"
+  }
+}
+
+data "coder_parameter" "enable_claude_code" {
+  name         = "enable_claude_code"
+  display_name = "Enable Claude Code"
+  description  = "Install the Claude Code CLI in this workspace."
+  type         = "bool"
+  default      = "false"
+  mutable      = true
+}
+
+data "coder_parameter" "claude_code_model" {
+  name         = "claude_code_model"
+  display_name = "Claude Code model"
+  description  = "Default model for Claude Code. Only used when Claude Code is enabled."
+  type         = "string"
+  default      = "sonnet"
+  mutable      = true
+  form_type    = "dropdown"
+
+  option {
+    name  = "Sonnet (recommended)"
+    value = "sonnet"
+  }
+  option {
+    name  = "Opus"
+    value = "opus"
+  }
+  option {
+    name  = "Haiku"
+    value = "haiku"
+  }
+}
+
+data "coder_parameter" "enable_codex" {
+  name         = "enable_codex"
+  display_name = "Enable Codex CLI"
+  description  = "Install the OpenAI Codex CLI in this workspace."
+  type         = "bool"
+  default      = "false"
+  mutable      = true
+}
+
+data "coder_parameter" "codex_reasoning_effort" {
+  name         = "codex_reasoning_effort"
+  display_name = "Codex reasoning effort"
+  description  = "Reasoning effort for Codex. Only used when Codex is enabled."
+  type         = "string"
+  default      = "medium"
+  mutable      = true
+  form_type    = "dropdown"
+
+  option {
+    name  = "Minimal"
+    value = "minimal"
+  }
+  option {
+    name  = "Low"
+    value = "low"
+  }
+  option {
+    name  = "Medium"
+    value = "medium"
+  }
+  option {
+    name  = "High"
+    value = "high"
   }
 }
 
@@ -155,6 +237,26 @@ module "jetbrains" {
   agent_name      = "main"
   folder          = "/home/coder/projects"
   coder_app_order = 2
+}
+
+module "claude-code" {
+  count             = data.coder_parameter.enable_claude_code.value == "true" ? data.coder_workspace.me.start_count : 0
+  source            = "registry.coder.com/coder/claude-code/coder"
+  version           = "~> 5.0"
+  agent_id          = coder_agent.main.id
+  workdir           = "/home/coder/projects"
+  model             = data.coder_parameter.claude_code_model.value
+  anthropic_api_key = var.anthropic_api_key
+}
+
+module "codex" {
+  count                  = data.coder_parameter.enable_codex.value == "true" ? data.coder_workspace.me.start_count : 0
+  source                 = "registry.coder.com/coder-labs/codex/coder"
+  version                = "~> 4.3"
+  agent_id               = coder_agent.main.id
+  workdir                = "/home/coder/projects"
+  openai_api_key         = var.openai_api_key
+  model_reasoning_effort = data.coder_parameter.codex_reasoning_effort.value
 }
 
 resource "docker_image" "main" {
