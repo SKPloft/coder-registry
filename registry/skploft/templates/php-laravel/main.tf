@@ -28,6 +28,8 @@ data "coder_task" "me" {}
 locals {
   username = data.coder_workspace_owner.me.name
 
+  proxy_url = "http://172.17.0.1:17891"
+
   use_claude_v5 = data.coder_parameter.enable_claude_code.value == "true" && data.coder_parameter.enable_claude_code_tasks.value != "true"
   use_claude_v4 = data.coder_parameter.enable_claude_code.value == "true" && data.coder_parameter.enable_claude_code_tasks.value == "true"
   use_codex     = data.coder_parameter.enable_codex.value == "true"
@@ -226,6 +228,13 @@ resource "coder_agent" "main" {
     interval     = 86400
     timeout      = 5
   }
+}
+
+module "proxy-env" {
+  count     = data.coder_workspace.me.start_count
+  source    = "../../modules/proxy-env"
+  agent_id  = coder_agent.main.id
+  proxy_url = local.proxy_url
 }
 
 module "git-clone" {
