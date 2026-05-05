@@ -32,23 +32,21 @@ The template builds a per-deployment image and runs each workspace as a containe
 
 ## AI agent support
 
-The template ships with optional AI coding agents that the workspace owner can toggle per workspace. API credentials are template-level admin variables, not workspace parameters, so they are set once at `coder templates push` time and never exposed in the create-workspace UI:
+The template ships with optional AI coding agents that the workspace owner can toggle per workspace. Nothing AI-related runs unless the corresponding **Enable …** parameter is checked, so workspaces stay lean by default.
 
-- `anthropic_api_key` — used by the Claude Code module. Leave empty to rely on workspace-owner OAuth (`claude setup-token`) or an external auth provider.
-- `openai_api_key` — used by the Codex module.
+When **Enable Claude Code** or **Enable Codex CLI** is on, the workspace authenticates the same way the upstream CLIs do — interactively, on first use:
 
-Set them with `-V`:
+- Claude Code: open the workspace terminal and run `claude /login`. The credentials are written to `~/.claude/` on the persistent home volume, so the login survives workspace restarts.
+- Codex: run `codex login`; the credentials live under `~/.codex/`.
 
-```bash
-coder templates push php-laravel \
-  -d registry/skploft/templates/php-laravel/ \
-  -V anthropic_api_key=sk-ant-... \
-  -V openai_api_key=sk-... \
-  -m "Add Claude Code and Codex" \
-  -y
-```
+This matches the pattern used by [`coder-labs/templates/tasks-docker`](https://github.com/coder/registry/tree/main/registry/coder-labs/templates/tasks-docker): no admin-set API keys, no secrets in template variables, and each workspace owner authenticates with their own account so billing and rate limits land on the right person.
+
+If the deployment runs Coder Premium (>= 2.30), the workspace owner can flip **Use Coder AI Gateway for Claude Code** or **Use Coder AI Bridge for Codex** instead — the CLIs then authenticate via the workspace owner's Coder session and no `/login` is needed.
 
 When Claude Code or Codex is enabled, the workspace also exposes a model / reasoning-effort dropdown so users can pick the runtime they want.
+
+> [!IMPORTANT]
+> The AI Gateway / AI Bridge toggles only do anything on a Coder Premium deployment with the corresponding feature configured. On a community deployment, leave them off and authenticate with `claude /login` or `codex login` instead.
 
 ## Usage
 
@@ -59,9 +57,6 @@ When Claude Code or Codex is enabled, the workspace also exposes a model / reaso
 
 > [!TIP]
 > The selected PHP version bakes into the image and is therefore not changeable after creation. To switch versions, create a new workspace.
-
-> [!IMPORTANT]
-> Only enable an AI agent if its API key has been configured on the template (or, for Claude Code, if the workspace owner has run `claude setup-token`). Without credentials, the CLI will install but fail to authenticate.
 
 > [!NOTE]
 > The workspace ships with `php`, `composer`, and `node` on `PATH` but does not start a database server. Use a sidecar (e.g. `docker compose up` from within the workspace, or a separate Coder workspace) for MySQL, Postgres, or Redis when your project needs one.
