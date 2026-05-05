@@ -24,7 +24,7 @@ The template builds a per-deployment image and runs each workspace as a containe
 - `docker_volume.home_volume` — persistent volume mounted at `/home/coder` so projects, Composer caches, and IDE state survive workspace restarts.
 - `docker_container.workspace` — ephemeral; recreated on each start. Connects back to Coder via the agent init script and uses `host.docker.internal` for access-URL routing on local deployments.
 - Modules consumed:
-  - [`skploft/proxy-env`](../../modules/proxy-env) — sets HTTP/HTTPS/NO_PROXY env vars on the agent. The URL is hardcoded in `main.tf` (`local.proxy_url`) and not exposed as a workspace parameter.
+  - [`skploft/proxy-env`](https://github.com/SKPloft/coder-registry/tree/skploft/templates/registry/skploft/modules/proxy-env) — sets HTTP/HTTPS/NO_PROXY env vars on the agent. The URL is hardcoded in `main.tf` (`local.proxy_url`) and not exposed as a workspace parameter. Sourced from the SKPloft fork via `git::https://...?ref=skploft/templates` until the module is published to `registry.coder.com`.
   - [`coder/git-clone`](https://registry.coder.com/modules/coder/git-clone) — clones the project into `~/projects/` when `git_repo_url` is set.
   - [`coder/code-server`](https://registry.coder.com/modules/coder/code-server) — browser VS Code, opens `~/projects/`.
   - [`coder/jetbrains`](https://registry.coder.com/modules/coder/jetbrains) — JetBrains Gateway connection (PhpStorm / IntelliJ) opening the same folder.
