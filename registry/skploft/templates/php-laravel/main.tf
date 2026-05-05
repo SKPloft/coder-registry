@@ -28,7 +28,7 @@ data "coder_task" "me" {}
 locals {
   username = data.coder_workspace_owner.me.name
 
-  proxy_url = "http://172.17.0.1:17891"
+  proxy_url = "http://172.18.0.1:17891"
   no_proxy  = "localhost,127.0.0.1,host.docker.internal,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
   use_claude_v5 = data.coder_parameter.enable_claude_code.value == "true" && data.coder_parameter.enable_claude_code_tasks.value != "true"
