@@ -25,6 +25,8 @@ ENV HTTP_PROXY=${HTTP_PROXY} \
   LANG=en_US.UTF-8 \
   LC_ALL=en_US.UTF-8
 
+RUN test -z "${HTTP_PROXY}" || printf 'Acquire::http::Proxy "%s";\nAcquire::https::Proxy "%s";\n' "${HTTP_PROXY}" "${HTTPS_PROXY}" > /etc/apt/apt.conf.d/01proxy
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates curl git gnupg locales lsb-release \
