@@ -43,7 +43,10 @@ This matches the pattern used by [`coder-labs/templates/tasks-docker`](https://g
 
 If the deployment runs Coder Premium (>= 2.30), the workspace owner can flip **Use Coder AI Gateway for Claude Code** or **Use Coder AI Bridge for Codex** instead — the CLIs then authenticate via the workspace owner's Coder session and no `/login` is needed.
 
-When Claude Code or Codex is enabled, the workspace also exposes a model / reasoning-effort dropdown so users can pick the runtime they want.
+The template intentionally does not expose a model or reasoning-effort parameter. Both CLIs let the developer pick at runtime, and the choice persists on the home volume:
+
+- Claude Code: type `/model` inside the CLI, or run `claude config set -g model opus`, or edit `~/.claude/settings.json`.
+- Codex: pass `--reasoning-effort high` on invocation, or set `model_reasoning_effort` in `~/.codex/config.toml`.
 
 > [!IMPORTANT]
 > The AI Gateway / AI Bridge toggles only do anything on a Coder Premium deployment with the corresponding feature configured. On a community deployment, leave them off and authenticate with `claude /login` or `codex login` instead.
@@ -52,7 +55,7 @@ When Claude Code or Codex is enabled, the workspace also exposes a model / reaso
 
 1. Push the template to your Coder deployment (see the command below).
 2. When creating a workspace, paste the Git URL of your Laravel or Statamic project into **Git repository URL**, optionally pin a branch, and pick a PHP version.
-3. Optionally toggle **Enable Claude Code** or **Enable Codex CLI** and pick a model / reasoning effort.
+3. Optionally toggle **Enable Claude Code** or **Enable Codex CLI** (and the AI Gateway / AI Bridge variants if your deployment supports them).
 4. After the workspace starts, open code-server or connect through JetBrains Gateway and run `composer install && npm install` inside the cloned project to bring up the dependencies.
 
 > [!TIP]
