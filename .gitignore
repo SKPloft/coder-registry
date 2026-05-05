@@ -149,3 +149,6 @@ gha-creds-*.json
 
 # IDEs
 .idea
+
+# FUSE filesystem leftovers (zombie files when an open file is deleted while still mapped)
+**/.fuse_hidden*
