@@ -26,10 +26,22 @@ data "coder_workspace_owner" "me" {}
 data "coder_task" "me" {}
 
 locals {
-  username = data.coder_workspace_owner.me.name
+  username   = data.coder_workspace_owner.me.name
+  workdir    = "/home/coder/projects"
+  node_major = "20"
+  image_user = "coder"
 
   proxy_url = "http://172.18.0.1:17891"
   no_proxy  = "localhost,127.0.0.1,host.docker.internal,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+
+  docker_build_args = {
+    PHP_VERSION = data.coder_parameter.php_version.value
+    NODE_MAJOR  = local.node_major
+    USER        = local.image_user
+    HTTP_PROXY  = local.proxy_url
+    HTTPS_PROXY = local.proxy_url
+    NO_PROXY    = local.no_proxy
+  }
 
   use_claude_v5 = data.coder_parameter.enable_claude_code.value == "true" && data.coder_parameter.enable_claude_code_tasks.value != "true"
   use_claude_v4 = data.coder_parameter.enable_claude_code.value == "true" && data.coder_parameter.enable_claude_code_tasks.value == "true"
@@ -254,7 +266,7 @@ module "code-server" {
   source   = "registry.coder.com/coder/code-server/coder"
   version  = "~> 1.0"
   agent_id = coder_agent.main.id
-  folder   = "/home/coder/projects"
+  folder   = local.workdir
   order    = 1
 }
 
@@ -264,7 +276,7 @@ module "jetbrains" {
   version         = "~> 1.0"
   agent_id        = coder_agent.main.id
   agent_name      = "main"
-  folder          = "/home/coder/projects"
+  folder          = local.workdir
   coder_app_order = 2
 }
 
@@ -273,7 +285,7 @@ module "claude-code" {
   source            = "registry.coder.com/coder/claude-code/coder"
   version           = "~> 5.0"
   agent_id          = coder_agent.main.id
-  workdir           = "/home/coder/projects"
+  workdir           = local.workdir
   enable_ai_gateway = data.coder_parameter.claude_code_use_ai_gateway.value == "true"
 }
 
@@ -282,7 +294,7 @@ module "claude-code-v4" {
   source         = "registry.coder.com/coder/claude-code/coder"
   version        = "~> 4.0"
   agent_id       = coder_agent.main.id
-  workdir        = "/home/coder/projects"
+  workdir        = local.workdir
   claude_api_key = ""
   ai_prompt      = data.coder_task.me.prompt
 }
@@ -292,7 +304,7 @@ module "codex" {
   source          = "registry.coder.com/coder-labs/codex/coder"
   version         = "~> 4.3"
   agent_id        = coder_agent.main.id
-  workdir         = "/home/coder/projects"
+  workdir         = local.workdir
   enable_aibridge = data.coder_parameter.codex_use_ai_bridge.value == "true"
   ai_prompt       = data.coder_task.me.prompt
   report_tasks    = true
@@ -308,17 +320,11 @@ resource "docker_image" "main" {
   build {
     context      = "./build"
     network_mode = "host"
-    build_args = {
-      PHP_VERSION = data.coder_parameter.php_version.value
-      USER        = "coder"
-      HTTP_PROXY  = local.proxy_url
-      HTTPS_PROXY = local.proxy_url
-      NO_PROXY    = local.no_proxy
-    }
+    build_args   = local.docker_build_args
   }
   triggers = {
-    dir_sha1 = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1("${path.module}/${f}")]))
-    proxy    = "${local.proxy_url}|${local.no_proxy}"
+    dir_sha1   = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1("${path.module}/${f}")]))
+    build_args = sha1(jsonencode(local.docker_build_args))
   }
 }
 
