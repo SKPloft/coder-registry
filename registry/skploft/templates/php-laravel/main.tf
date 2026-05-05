@@ -232,7 +232,7 @@ resource "coder_agent" "main" {
 
 module "proxy-env" {
   count     = data.coder_workspace.me.start_count
-  source    = "../../modules/proxy-env"
+  source    = "git::https://github.com/SKPloft/coder-registry.git//registry/skploft/modules/proxy-env?ref=skploft/templates"
   agent_id  = coder_agent.main.id
   proxy_url = local.proxy_url
 }
