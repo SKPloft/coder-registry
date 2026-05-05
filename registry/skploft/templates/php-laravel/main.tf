@@ -71,33 +71,10 @@ data "coder_parameter" "php_version" {
 data "coder_parameter" "enable_claude_code" {
   name         = "enable_claude_code"
   display_name = "Enable Claude Code"
-  description  = "Install the Claude Code CLI in this workspace. Authenticate with `claude /login` after first start; the credential survives in the home volume."
+  description  = "Install the Claude Code CLI in this workspace. Authenticate with `claude /login` after first start; the credential survives in the home volume. Pick a model with `/model` (or `claude config set -g model opus`)."
   type         = "bool"
   default      = "false"
   mutable      = true
-}
-
-data "coder_parameter" "claude_code_model" {
-  name         = "claude_code_model"
-  display_name = "Claude Code model"
-  description  = "Default model for Claude Code. Only used when Claude Code is enabled."
-  type         = "string"
-  default      = "sonnet"
-  mutable      = true
-  form_type    = "dropdown"
-
-  option {
-    name  = "Sonnet (recommended)"
-    value = "sonnet"
-  }
-  option {
-    name  = "Opus"
-    value = "opus"
-  }
-  option {
-    name  = "Haiku"
-    value = "haiku"
-  }
 }
 
 data "coder_parameter" "claude_code_use_ai_gateway" {
@@ -112,37 +89,10 @@ data "coder_parameter" "claude_code_use_ai_gateway" {
 data "coder_parameter" "enable_codex" {
   name         = "enable_codex"
   display_name = "Enable Codex CLI"
-  description  = "Install the OpenAI Codex CLI in this workspace. Authenticate with `codex login` after first start; the credential survives in the home volume."
+  description  = "Install the OpenAI Codex CLI in this workspace. Authenticate with `codex login` after first start; the credential survives in the home volume. Set the reasoning level with the `--reasoning-effort` flag or `~/.codex/config.toml`."
   type         = "bool"
   default      = "false"
   mutable      = true
-}
-
-data "coder_parameter" "codex_reasoning_effort" {
-  name         = "codex_reasoning_effort"
-  display_name = "Codex reasoning effort"
-  description  = "Reasoning effort for Codex. Only used when Codex is enabled."
-  type         = "string"
-  default      = "medium"
-  mutable      = true
-  form_type    = "dropdown"
-
-  option {
-    name  = "Minimal"
-    value = "minimal"
-  }
-  option {
-    name  = "Low"
-    value = "low"
-  }
-  option {
-    name  = "Medium"
-    value = "medium"
-  }
-  option {
-    name  = "High"
-    value = "high"
-  }
 }
 
 data "coder_parameter" "codex_use_ai_bridge" {
@@ -249,18 +199,16 @@ module "claude-code" {
   version           = "~> 5.0"
   agent_id          = coder_agent.main.id
   workdir           = "/home/coder/projects"
-  model             = data.coder_parameter.claude_code_model.value
   enable_ai_gateway = data.coder_parameter.claude_code_use_ai_gateway.value == "true"
 }
 
 module "codex" {
-  count                  = data.coder_parameter.enable_codex.value == "true" ? data.coder_workspace.me.start_count : 0
-  source                 = "registry.coder.com/coder-labs/codex/coder"
-  version                = "~> 4.3"
-  agent_id               = coder_agent.main.id
-  workdir                = "/home/coder/projects"
-  model_reasoning_effort = data.coder_parameter.codex_reasoning_effort.value
-  enable_aibridge        = data.coder_parameter.codex_use_ai_bridge.value == "true"
+  count           = data.coder_parameter.enable_codex.value == "true" ? data.coder_workspace.me.start_count : 0
+  source          = "registry.coder.com/coder-labs/codex/coder"
+  version         = "~> 4.3"
+  agent_id        = coder_agent.main.id
+  workdir         = "/home/coder/projects"
+  enable_aibridge = data.coder_parameter.codex_use_ai_bridge.value == "true"
 }
 
 resource "docker_image" "main" {
