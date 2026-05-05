@@ -306,7 +306,8 @@ resource "coder_ai_task" "task" {
 resource "docker_image" "main" {
   name = "coder-${data.coder_workspace.me.id}-php-laravel"
   build {
-    context = "./build"
+    context      = "./build"
+    network_mode = "host"
     build_args = {
       PHP_VERSION = data.coder_parameter.php_version.value
       USER        = "coder"
