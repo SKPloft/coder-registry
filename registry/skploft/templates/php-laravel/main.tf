@@ -19,20 +19,6 @@ variable "docker_socket" {
   default     = ""
 }
 
-variable "anthropic_api_key" {
-  description = "Anthropic API key for the Claude Code module. Set at template push time. Leave empty to rely on workspace-owner OAuth."
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "openai_api_key" {
-  description = "OpenAI API key for the Codex module. Set at template push time."
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
 provider "docker" {
   host = var.docker_socket != "" ? var.docker_socket : null
 }
@@ -85,7 +71,7 @@ data "coder_parameter" "php_version" {
 data "coder_parameter" "enable_claude_code" {
   name         = "enable_claude_code"
   display_name = "Enable Claude Code"
-  description  = "Install the Claude Code CLI in this workspace."
+  description  = "Install the Claude Code CLI in this workspace. Authenticate with `claude /login` after first start; the credential survives in the home volume."
   type         = "bool"
   default      = "false"
   mutable      = true
@@ -114,10 +100,19 @@ data "coder_parameter" "claude_code_model" {
   }
 }
 
+data "coder_parameter" "claude_code_use_ai_gateway" {
+  name         = "claude_code_use_ai_gateway"
+  display_name = "Use Coder AI Gateway for Claude Code"
+  description  = "Route Claude Code through Coder AI Gateway using the workspace owner's session. Requires Coder Premium and Coder >= 2.30. When enabled, no `/login` is needed."
+  type         = "bool"
+  default      = "false"
+  mutable      = true
+}
+
 data "coder_parameter" "enable_codex" {
   name         = "enable_codex"
   display_name = "Enable Codex CLI"
-  description  = "Install the OpenAI Codex CLI in this workspace."
+  description  = "Install the OpenAI Codex CLI in this workspace. Authenticate with `codex login` after first start; the credential survives in the home volume."
   type         = "bool"
   default      = "false"
   mutable      = true
@@ -148,6 +143,15 @@ data "coder_parameter" "codex_reasoning_effort" {
     name  = "High"
     value = "high"
   }
+}
+
+data "coder_parameter" "codex_use_ai_bridge" {
+  name         = "codex_use_ai_bridge"
+  display_name = "Use Coder AI Bridge for Codex"
+  description  = "Route Codex through Coder AI Bridge using the workspace owner's session. Requires Coder Premium and Coder >= 2.30. When enabled, no `codex login` is needed."
+  type         = "bool"
+  default      = "false"
+  mutable      = true
 }
 
 resource "coder_agent" "main" {
@@ -246,7 +250,7 @@ module "claude-code" {
   agent_id          = coder_agent.main.id
   workdir           = "/home/coder/projects"
   model             = data.coder_parameter.claude_code_model.value
-  anthropic_api_key = var.anthropic_api_key
+  enable_ai_gateway = data.coder_parameter.claude_code_use_ai_gateway.value == "true"
 }
 
 module "codex" {
@@ -255,8 +259,8 @@ module "codex" {
   version                = "~> 4.3"
   agent_id               = coder_agent.main.id
   workdir                = "/home/coder/projects"
-  openai_api_key         = var.openai_api_key
   model_reasoning_effort = data.coder_parameter.codex_reasoning_effort.value
+  enable_aibridge        = data.coder_parameter.codex_use_ai_bridge.value == "true"
 }
 
 resource "docker_image" "main" {
