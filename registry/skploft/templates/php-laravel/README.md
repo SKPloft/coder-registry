@@ -27,8 +27,8 @@ The template builds a per-deployment image and runs each workspace as a containe
   - [`coder/git-clone`](https://registry.coder.com/modules/coder/git-clone) — clones the project into `~/projects/` when `git_repo_url` is set.
   - [`coder/code-server`](https://registry.coder.com/modules/coder/code-server) — browser VS Code, opens `~/projects/`.
   - [`coder/jetbrains`](https://registry.coder.com/modules/coder/jetbrains) — JetBrains Gateway connection (PhpStorm / IntelliJ) opening the same folder.
-  - [`coder/claude-code`](https://registry.coder.com/modules/coder/claude-code) — installed when **Enable Claude Code** is checked.
-  - [`coder-labs/codex`](https://registry.coder.com/modules/coder-labs/codex) — installed when **Enable Codex CLI** is checked.
+  - [`coder/claude-code`](https://registry.coder.com/modules/coder/claude-code) — installed when **Enable Claude Code** is checked. Pinned to `~> 5.0` by default; pinned to `~> 4.0` instead when **Pin Claude Code to v4 for Coder Tasks** is also on.
+  - [`coder-labs/codex`](https://registry.coder.com/modules/coder-labs/codex) — installed when **Enable Codex CLI** is checked. Always task-capable.
 
 ## AI agent support
 
@@ -50,6 +50,37 @@ The template intentionally does not expose a model or reasoning-effort parameter
 
 > [!IMPORTANT]
 > The AI Gateway / AI Bridge toggles only do anything on a Coder Premium deployment with the corresponding feature configured. On a community deployment, leave them off and authenticate with `claude /login` or `codex login` instead.
+
+## Coder Tasks
+
+This template is Tasks-capable. When at least one task-capable agent module is installed, the Tasks UI lets a user paste a prompt, pick a workspace preset, and the agent runs against the prompt inside an isolated workspace.
+
+The agent that answers the prompt is selected by the **Tasks agent** parameter:
+
+- `codex` (default) — Codex always supports Tasks. Runtime auth via `codex login`. Recommended unless you specifically need Claude.
+- `claude` — requires **Pin Claude Code to v4 for Coder Tasks** to also be on. v5 of the Claude Code module dropped Tasks support pending a follow-up; v4 still has `task_app_id` and is what the official `coder-labs/tasks-docker` template uses. The tradeoff is v4 predates the v5 runtime-OAuth flow.
+
+If the selected agent is not installed in the workspace, the other one is used as a fallback.
+
+### Workspace presets
+
+Presets bundle a set of parameter values into a named option that surfaces in the Tasks UI dropdown:
+
+```tf
+data "coder_workspace_preset" "statamic_skploft" {
+  name    = "SKPloft Statamic"
+  default = true
+  parameters = {
+    git_repo_url = "https://github.com/SKPloft/statamic.git"
+    enable_codex = "true"
+    task_agent   = "codex"
+  }
+}
+```
+
+Each preset = one entry in the dropdown. Adding another scenario means appending another `data "coder_workspace_preset"` block — the workspace's Dockerfile, agent, and module logic stay untouched. Users who don't want any preset's repo can deselect it and paste their own URL into **Git repository URL** at create time; that path stays free-form.
+
+The template ships with one preset (`SKPloft Statamic`) as a starting point. To add more — or to point the existing one at a different repo — edit `main.tf` and re-push.
 
 ## Usage
 
