@@ -30,37 +30,14 @@ RUN test -z "${HTTP_PROXY}" || printf 'Acquire::http::Proxy "%s";\nAcquire::http
 
 RUN printf 'Acquire::Retries "10";\nAcquire::http::Timeout "60";\nAcquire::https::Timeout "60";\n' > /etc/apt/apt.conf.d/80retries
 
-RUN --network=host apt-get update \
+RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    ca-certificates curl git gnupg locales lsb-release \
-    software-properties-common sudo tzdata unzip zip \
+    ca-certificates curl git gnupg locales \
+    sudo tzdata unzip zip \
   && locale-gen en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
 
-RUN --network=host add-apt-repository -y ppa:ondrej/php \
-  && sed -i 's|https://ppa\.launchpadcontent\.net|http://ppa.launchpadcontent.net|g' /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list 2>/dev/null || true \
-  && apt-get update \
-  && apt-get install -y --no-install-recommends \
-    php${PHP_VERSION}-cli \
-    php${PHP_VERSION}-bcmath \
-    php${PHP_VERSION}-curl \
-    php${PHP_VERSION}-dom \
-    php${PHP_VERSION}-gd \
-    php${PHP_VERSION}-intl \
-    php${PHP_VERSION}-mbstring \
-    php${PHP_VERSION}-mysql \
-    php${PHP_VERSION}-pgsql \
-    php${PHP_VERSION}-redis \
-    php${PHP_VERSION}-sqlite3 \
-    php${PHP_VERSION}-xml \
-    php${PHP_VERSION}-zip \
-  && update-alternatives --set php /usr/bin/php${PHP_VERSION} \
-  && rm -rf /var/lib/apt/lists/*
-
-RUN --network=host curl -fsSL https://getcomposer.org/installer | php -- \
-  --install-dir=/usr/local/bin --filename=composer
-
-RUN --network=host curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" -o /tmp/nodesource_setup.sh \
+RUN curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" -o /tmp/nodesource_setup.sh \
   && bash /tmp/nodesource_setup.sh \
   && apt-get install -y --no-install-recommends nodejs \
   && rm -f /tmp/nodesource_setup.sh \
@@ -70,6 +47,16 @@ RUN useradd --create-home --shell=/bin/bash ${USER} \
   && echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER} \
   && chmod 440 /etc/sudoers.d/${USER}
 
-WORKDIR /home/${USER}
 USER ${USER}
+WORKDIR /home/${USER}
+
+# Herd Lite installs PHP (with bundled extensions), Composer, and the Laravel
+# installer per-user under $HOME/.config/herd-lite/bin. Run as the coder user
+# so it lands in /home/coder, not /root.
+RUN /bin/bash -c "$(curl -fsSL https://php.new/install/linux/${PHP_VERSION})"
+
+# The installer appends to ~/.bashrc, but non-login shells (Coder agent init,
+# coder_script runs, docker exec) won't source it — set PATH explicitly.
+ENV PATH="/home/${USER}/.config/herd-lite/bin:${PATH}"
+
 CMD ["bash"]

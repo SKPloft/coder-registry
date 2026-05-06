@@ -13,14 +13,14 @@ Provisions a Linux Docker container with a complete PHP / Composer / Node toolch
 ## Prerequisites
 
 - A Coder deployment with a Docker-capable provisioner (Docker Engine on Linux, or Colima / OrbStack on macOS).
-- Network access to the Ubuntu archive, the `ondrej/php` PPA, NodeSource, and `getcomposer.org` so the workspace image can build.
+- Network access to the Ubuntu archive, NodeSource, and `download.herdphp.com` (Laravel Herd Lite installer host) so the workspace image can build.
 - For private project repositories, configure a [Git external auth provider](https://coder.com/docs/admin/external-auth) on your Coder deployment, or use an SSH-based clone URL with keys provisioned via dotfiles.
 
 ## Architecture
 
 The template builds a per-deployment image and runs each workspace as a container with a persistent home volume.
 
-- `docker_image.main` — built locally from `build/Dockerfile`. Installs PHP (selectable version), the extensions Statamic and most Laravel projects expect (`bcmath`, `curl`, `dom`, `gd`, `intl`, `mbstring`, `mysql`, `pgsql`, `redis`, `sqlite3`, `xml`, `zip`), Composer 2, and Node.js 20.
+- `docker_image.main` — built locally from `build/Dockerfile`. Installs PHP (selectable version) via the [Laravel Herd Lite](https://php.new) one-liner, which ships PHP with the extensions Statamic and Laravel projects expect (`bcmath`, `curl`, `dom`, `gd`, `intl`, `mbstring`, `mysql`/`pgsql`, `redis`, `sqlite`, `xml`, `zip`) plus Composer and the Laravel installer, all under `/home/coder/.config/herd-lite/`. Node.js 20 is installed system-wide via NodeSource.
 - `docker_volume.home_volume` — persistent volume mounted at `/home/coder` so projects, Composer caches, and IDE state survive workspace restarts.
 - `docker_container.workspace` — ephemeral; recreated on each start. Connects back to Coder via the agent init script and uses `host.docker.internal` for access-URL routing on local deployments.
 - Modules consumed:
@@ -82,6 +82,35 @@ data "coder_workspace_preset" "statamic_skploft" {
 Each preset = one entry in the dropdown. Adding another scenario means appending another `data "coder_workspace_preset"` block — the workspace's Dockerfile, agent, and module logic stay untouched. Users who don't want any preset's repo can deselect it and paste their own URL into **Git repository URL** at create time; that path stays free-form.
 
 The template ships with one preset (`SKPloft Statamic`) as a starting point. To add more — or to point the existing one at a different repo — edit `main.tf` and re-push.
+
+## Dev URLs
+
+The template ships two `coder_app` buttons for the Statamic dev workflow:
+
+- **Statamic (artisan serve)** — proxies `http://localhost:8000`. Inside the workspace: `php artisan serve --host 0.0.0.0 --port 8000`.
+- **Vite (npm run dev)** — proxies `http://localhost:5173`. Inside the workspace: `npm run dev`.
+
+Bind the listener to `0.0.0.0` (not `127.0.0.1`) so the Coder agent can reach it.
+
+> [!IMPORTANT]
+> Both apps are configured with `subdomain = true`, which requires `CODER_WILDCARD_ACCESS_URL` to be set on the Coder server. Vite HMR (WebSocket) will not work over Coder's path-based fallback — set up the wildcard URL for HMR. The `artisan serve` button works on path-based fallback too.
+
+## Upgrading an existing shinsenter/statamic site
+
+This workspace pairs naturally with a remote running [`shinsenter/statamic`](https://hub.docker.com/r/shinsenter/statamic) — the dev workspace is where you do the codebase upgrade; the remote's deploy pipeline stays whatever you already have.
+
+A typical Statamic-version bump (e.g. 3 → 5/6) flow inside this workspace:
+
+1. Clone the project repo via the **Git repository URL** parameter at workspace creation.
+2. Match the **PHP version** parameter to your remote's `shinsenter/statamic:php<v>` tag — `php8.4` is the current default for both. Note: Herd Lite doesn't ship PHP 8.1; if you need to reproduce a Statamic-3-on-PHP-8.1 baseline, pick 8.2, which Statamic 3 still tolerates.
+3. `composer outdated statamic/cms` — see what your current constraint allows. To cross a major, edit `composer.json` (`"statamic/cms": "^5.0"`) then run `composer update statamic/cms --with-all-dependencies`.
+4. Read the [Statamic upgrade guide](https://statamic.dev/upgrade-guide) for the version jump you're making. Major-version jumps (3→4 in particular) require Antlers template syntax migrations and addon updates.
+5. Rebuild frontend assets: `npm install && npm run build`.
+6. Smoke-test locally: `php artisan serve --host 0.0.0.0 --port 8000` → click the **Statamic** button → walk the control panel (`/cp`) and a couple of frontend routes.
+7. Commit and push through your existing deploy path — this template intentionally does not prescribe one.
+
+> [!TIP]
+> Keep the dev `php_version` parameter pinned to the same major as your remote's `shinsenter/statamic` tag. Mismatches let extension or syntax bugs slip past dev review.
 
 ## Usage
 
