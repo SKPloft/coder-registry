@@ -31,7 +31,7 @@ locals {
   node_major = "20"
   image_user = "coder"
 
-  proxy_url = "http://172.17.0.1:7890"
+  proxy_url = "http://host.docker.internal:7890"
   no_proxy  = "localhost,127.0.0.1,host.docker.internal,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
   docker_build_args = {
@@ -78,9 +78,9 @@ data "coder_parameter" "git_branch" {
 data "coder_parameter" "php_version" {
   name         = "php_version"
   display_name = "PHP version"
-  description  = "PHP runtime version baked into the workspace image."
+  description  = "PHP runtime version baked into the workspace image. Match this to your remote (shinsenter/statamic latest ships on PHP 8.4)."
   type         = "string"
-  default      = "8.3"
+  default      = "8.4"
   mutable      = false
   form_type    = "dropdown"
 
@@ -89,11 +89,11 @@ data "coder_parameter" "php_version" {
     value = "8.2"
   }
   option {
-    name  = "PHP 8.3 (recommended)"
+    name  = "PHP 8.3"
     value = "8.3"
   }
   option {
-    name  = "PHP 8.4"
+    name  = "PHP 8.4 (recommended, matches shinsenter/statamic:php8.4)"
     value = "8.4"
   }
 }
@@ -177,7 +177,7 @@ data "coder_workspace_preset" "statamic_skploft" {
   parameters = {
     git_repo_url = "https://github.com/SKPloft/statamic.git"
     git_branch   = ""
-    php_version  = "8.3"
+    php_version  = "8.4"
     enable_codex = "true"
     task_agent   = "codex"
   }
@@ -280,6 +280,40 @@ module "jetbrains" {
   coder_app_order = 2
 }
 
+resource "coder_app" "statamic_serve" {
+  count        = data.coder_workspace.me.start_count
+  agent_id     = coder_agent.main.id
+  slug         = "statamic"
+  display_name = "Statamic (artisan serve)"
+  url          = "http://localhost:8000"
+  subdomain    = true
+  share        = "owner"
+  order        = 3
+
+  healthcheck {
+    url       = "http://localhost:8000"
+    interval  = 30
+    threshold = 60
+  }
+}
+
+resource "coder_app" "vite" {
+  count        = data.coder_workspace.me.start_count
+  agent_id     = coder_agent.main.id
+  slug         = "vite"
+  display_name = "Vite (npm run dev)"
+  url          = "http://localhost:5173"
+  subdomain    = true
+  share        = "owner"
+  order        = 4
+
+  healthcheck {
+    url       = "http://localhost:5173"
+    interval  = 30
+    threshold = 60
+  }
+}
+
 module "claude-code" {
   count             = local.use_claude_v5 ? data.coder_workspace.me.start_count : 0
   source            = "registry.coder.com/coder/claude-code/coder"
@@ -318,9 +352,9 @@ resource "coder_ai_task" "task" {
 resource "docker_image" "main" {
   name = "coder-${data.coder_workspace.me.id}-php-laravel"
   build {
-    context      = "./build"
-    network_mode = "host"
-    build_args   = local.docker_build_args
+    context     = "./build"
+    extra_hosts = ["host.docker.internal:host-gateway"]
+    build_args  = local.docker_build_args
   }
   triggers = {
     dir_sha1   = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1("${path.module}/${f}")]))
