@@ -1,6 +1,6 @@
 ---
 display_name: SKPLoft
-bio: Coder templates and modules for PHP, Laravel, and Statamic development workflows.
+bio: Coder templates and modules
 github: SKPloft
 avatar: ./.images/avatar.jpg
 status: community
@@ -12,7 +12,6 @@ Coder workspace templates focused on PHP- and Laravel-stack development, includi
 
 ## Templates
 
-- **php-laravel**: Docker workspace with PHP, Composer, and Node.js pre-installed; clones a project repository on first start.
 
 ## Contributing
 
