@@ -8,7 +8,6 @@ status: community
 
 # SKPLoft
 
-Coder workspace templates focused on PHP- and Laravel-stack development, including Statamic-friendly defaults.
 
 ## Templates
 
